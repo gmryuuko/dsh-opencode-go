@@ -44,7 +44,7 @@ export class OpenCodeGoAdapter extends PiAiAdapter {
       },
       resolveApiKey: async () => {
         const token = options.token().trim().replace(/^Bearer\s+/i, '')
-        if (!token) throw new LlmError('请在插件设置中填写 OpenCode Go token。', 'MISSING_CREDENTIAL')
+        if (!token) throw new LlmError('请在左侧插件页打开 dsh-opencode-go，填写 OpenCode Go API Key。', 'MISSING_CREDENTIAL')
         return assertUsableApiKey(token, 'dsh-opencode-go', 'token')
       },
       auth: {

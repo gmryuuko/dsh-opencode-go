@@ -13,13 +13,17 @@ dsh plugin --profile web add github:gmryuuko/dsh-opencode-go#main
 ```
 
 1. 启动或重启 `dsh --profile web`。
-2. 打开 **设置 → 插件**，找到 `dsh-opencode-go` / `llm-opencode-go`。
-3. 在 **token** 中粘贴 OpenCode Go API Key 并保存。
+2. 打开左侧 **插件 → 已安装**，启用 `dsh-opencode-go`，点击插件名称进入详情。
+3. 在详情中的 **OpenCode Go API Key** 输入框粘贴 key，点击 **保存 API Key**。
 4. 在会话模型选择器中选择 **OpenCode Go** 下的模型。
 
 token 保存后在下一次请求生效，无需再次重启。启动时允许留空；填写前不会提供可选模型。token 字段标记为 secret，设置表单不会回传已保存的明文值；配置仍由 DSH 保存到当前 profile，勿分享包含 token 的 profile 文件。
 
+首次从旧版更新到带配置页面的版本后，请重启 DSH，以加载新增的客户端入口。**设置 → 内置插件** 是运行状态清单，不是本插件的 key 输入入口。
+
 使用其他 profile 时，将命令中的 `web` 替换为实际名称。仓库包含已构建的 `dist/`，安装时无需手动编译。本项目尚未发布到 npm。
+
+从本地源码目录安装时，先在该目录执行 `npm ci`，再执行 `dsh plugin --profile desktop add .`（Web 版将 `desktop` 换成 `web`）。本地目录以链接方式加载，仍需安装运行依赖；已有 `dist/` 不代表依赖已安装。
 
 ## 功能
 
@@ -69,7 +73,7 @@ npm pack
 dsh plugin --profile web add ./dsh-opencode-go-0.1.0.tgz
 ```
 
-测试使用模拟 HTTP/SSE 响应，不需要 token，也不会消耗额度；覆盖四种协议的真实 SDK 请求、鉴权与会话头、UTF-8 分片、工具参数、用量与终止顺序、token 更新、取消、目录缓存及离线回退。另验证插件在真实 Cordis / DSH LLM 服务中的注册、卸载与重复注册行为。
+测试使用模拟 HTTP/SSE 响应，不需要 token，也不会消耗额度；覆盖四种协议的真实 SDK 请求、鉴权与会话头、UTF-8 分片、工具参数、用量与终止顺序、token 更新、取消、目录缓存及离线回退。另验证客户端配置入口、密码输入与保存成功/失败，以及真实 Cordis Loader 中 token 热更新后的模型列表刷新、插件注册、卸载与重复注册行为。
 
 已实测公开模型目录；尚未使用真实 Go token 进行付费生成验证。
 

@@ -9,7 +9,9 @@
     "url": "git+https://github.com/gmryuuko/dsh-opencode-go.git"
   },
   "homepage": "https://github.com/gmryuuko/dsh-opencode-go#readme",
-  "bugs": { "url": "https://github.com/gmryuuko/dsh-opencode-go/issues" },
+  "bugs": {
+    "url": "https://github.com/gmryuuko/dsh-opencode-go/issues"
+  },
   "engines": {
     "node": ">=22.19.0",
     "dsh": "0.2.1-rc.2"
@@ -21,11 +23,13 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./client": "./client/index.js",
     "./package.json": "./package.json",
     "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "files": [
     "dist",
+    "client",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
@@ -46,6 +50,13 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
     }
   },
   "dependencies": {
@@ -71,6 +82,8 @@
   "devDependencies": {
     "@deepseek-ai/cordis-plugin-loader": "~1.0.6",
     "@types/node": "^24.0.0",
+    "react": "18.3.1",
+    "react-test-renderer": "18.3.1",
     "tsx": "^4.20.0",
     "typescript": "~5.9.3"
   }
