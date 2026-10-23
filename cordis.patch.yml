@@ -1,0 +1,5 @@
+- insert:
+    - id: llm-opencode-go
+      name: dsh-opencode-go
+      config:
+        token: ''
