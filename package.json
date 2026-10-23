@@ -55,7 +55,8 @@
       "platform": "web",
       "inject": [
         "@deepseek-ai/dsh-client-ui-settings",
-        "@deepseek-ai/dsh-client-ui-plugin-manager"
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-api-remotes"
       ]
     }
   },
@@ -68,8 +69,10 @@
     "@deepseek-ai/cordis": "~4.0.5",
     "@deepseek-ai/cordis-plugin-loader": "~1.0.6",
     "@deepseek-ai/dsh-attachment": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-credentials": "0.2.1-rc.2",
     "@deepseek-ai/dsh-fs": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-llm": "0.2.1-rc.2"
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-settings": "0.2.1-rc.2"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis-plugin-loader": {
@@ -77,10 +80,15 @@
     },
     "@deepseek-ai/dsh-fs": {
       "optional": true
+    },
+    "@deepseek-ai/dsh-settings": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@deepseek-ai/cordis-plugin-loader": "~1.0.6",
+    "@deepseek-ai/dsh-credentials": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-settings": "0.2.1-rc.2",
     "@types/node": "^24.0.0",
     "react": "18.3.1",
     "react-test-renderer": "18.3.1",

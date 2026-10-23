@@ -2,4 +2,4 @@
     - id: llm-opencode-go
       name: dsh-opencode-go
       config:
-        token: ''
+        apiKeyEnv: OPENCODE_GO_API_KEY

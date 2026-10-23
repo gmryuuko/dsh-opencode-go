@@ -5,6 +5,7 @@ import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai';
 import { GoCatalog, goProvider, PROVIDER } from './catalog.js';
 /** Single public provider, backed by the official DSH streaming/replay adapter. */
 export class OpenCodeGoAdapter extends PiAiAdapter {
+    options;
     catalog;
     anonymousSessions = new WeakMap();
     constructor(options) {
@@ -32,9 +33,9 @@ export class OpenCodeGoAdapter extends PiAiAdapter {
                 return profiles;
             },
             resolveApiKey: async () => {
-                const token = options.token().trim().replace(/^Bearer\s+/i, '');
+                const token = (await options.token()).trim().replace(/^Bearer\s+/i, '');
                 if (!token)
-                    throw new LlmError('请在左侧插件页打开 dsh-opencode-go，填写 OpenCode Go API Key。', 'MISSING_CREDENTIAL');
+                    throw new LlmError('请在设置 → OpenCode Go 中填写 API Key。', 'MISSING_CREDENTIAL');
                 return assertUsableApiKey(token, 'dsh-opencode-go', 'token');
             },
             auth: {
@@ -44,14 +45,18 @@ export class OpenCodeGoAdapter extends PiAiAdapter {
             resolveAttachments: options.resolveAttachments,
             resolveImageAccess: options.resolveImageAccess,
         });
+        this.options = options;
         this.catalog = catalog;
     }
     async listModels(provider) {
         await this.catalog.refresh();
-        return super.listModels(provider);
+        const models = await super.listModels(provider);
+        const disabled = new Set(this.options.disabledModels?.() ?? []);
+        return models.filter(model => !disabled.has(model.id));
     }
     async resolveModel(provider, model, signal) {
         signal?.throwIfAborted();
+        this.assertEnabled(model);
         if (!this.catalog.has(model))
             await this.catalog.refresh(signal);
         signal?.throwIfAborted();
@@ -59,14 +64,25 @@ export class OpenCodeGoAdapter extends PiAiAdapter {
     }
     async prepareCall(provider, model, signal) {
         signal?.throwIfAborted();
+        this.assertEnabled(model);
         if (!this.catalog.has(model))
             await this.catalog.refresh(signal);
         signal?.throwIfAborted();
         const prepared = await super.prepareCall(provider, model, signal);
-        return { ...prepared, stream: options => prepared.stream(this.withSession(options)) };
+        const adapter = this;
+        return { ...prepared, async *stream(options) {
+                adapter.assertEnabled(options.model);
+                yield* prepared.stream(adapter.withSession(options));
+            } };
     }
-    stream(options) {
-        return super.stream(this.withSession(options));
+    async *stream(options) {
+        this.assertEnabled(options.model);
+        yield* super.stream(this.withSession(options));
+    }
+    assertEnabled(model) {
+        if (this.options.disabledModels?.().includes(model)) {
+            throw new LlmError(`模型 ${model} 已关闭，请在设置 → OpenCode Go 中开启或选择其他模型。`, 'MODEL_DISABLED');
+        }
     }
     withSession(options) {
         if (options.sessionId)

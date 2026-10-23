@@ -77,13 +77,17 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   return result
 }
 
-test('configuration exposes exactly one live secret field', () => {
+test('configuration exposes a live secret and defaults to every model enabled', () => {
   const schema = Config.toJSON()
   const root = schema.refs[schema.uid]
-  assert.deepEqual(Object.keys(root.dict!), ['token'])
+  assert.deepEqual(Object.keys(root.dict!), ['apiKeyEnv', 'token', 'disabledModels'])
   const token = schema.refs[root.dict!.token]
   assert.equal(token.meta?.role, 'secret')
   assert.equal(token.meta?.volatile, true)
+  const disabledModels = schema.refs[root.dict!.disabledModels]
+  assert.equal(disabledModels.meta?.volatile, true)
+  assert.deepEqual(Config({}).disabledModels.get(), [])
+  assert.equal(Config({}).apiKeyEnv.get(), 'OPENCODE_GO_API_KEY')
 })
 
 test('missing and invalid tokens fail without exposing secrets or making requests', async () => {
@@ -181,6 +185,32 @@ test('an unauthenticated installation offers no selectable models', async () => 
   const adapter = new OpenCodeGoAdapter({ token: () => '', catalog })
   assert.deepEqual(await adapter.listModels('opencode-go'), [])
   adapter.dispose()
+})
+
+test('disabled models disappear from the picker and reject new calls, including previously prepared calls', async () => {
+  let disabledModels: string[] = []
+  const catalog = new GoCatalog({ fetch: async () => { throw new Error('offline fixture') } })
+  const adapter = new OpenCodeGoAdapter({ token: () => 'test-token', disabledModels: () => disabledModels, catalog })
+  const transport = intercept(chat)
+  try {
+    const original = await adapter.listModels('opencode-go')
+    const pending = adapter.stream(request())
+    const prepared = await adapter.prepareCall('opencode-go', 'glm-5.3')
+    disabledModels = ['glm-5.3']
+    assert.deepEqual(await adapter.listModels('opencode-go'), original.filter(model => model.id !== 'glm-5.3'))
+    await assert.rejects(adapter.resolveModel('opencode-go', 'glm-5.3'), { code: 'MODEL_DISABLED' })
+    await assert.rejects(adapter.prepareCall('opencode-go', 'glm-5.3'), { code: 'MODEL_DISABLED' })
+    await assert.rejects(collect(adapter.stream(request())), { code: 'MODEL_DISABLED' })
+    await assert.rejects(collect(pending), { code: 'MODEL_DISABLED' })
+    await assert.rejects(collect(prepared.stream(request())), { code: 'MODEL_DISABLED' })
+    assert.equal(transport.calls.length, 0)
+    disabledModels = original.map(model => model.id)
+    assert.deepEqual(await adapter.listModels('opencode-go'), [])
+    disabledModels = []
+    assert.deepEqual(await adapter.listModels('opencode-go'), original)
+    await collect(adapter.stream(request()))
+    assert.equal(transport.calls.length, 1)
+  } finally { transport.restore(); adapter.dispose() }
 })
 
 test('provider HTTP errors settle as an error finish without SDK retries', async () => {

@@ -13,13 +13,20 @@ dsh plugin --profile web add github:gmryuuko/dsh-opencode-go#main
 ```
 
 1. 启动或重启 `dsh --profile web`。
-2. 打开左侧 **插件 → 已安装**，启用 `dsh-opencode-go`，点击插件名称进入详情。
-3. 在详情中的 **OpenCode Go API Key** 输入框粘贴 key，点击 **保存 API Key**。
-4. 在会话模型选择器中选择 **OpenCode Go** 下的模型。
+2. 打开左侧 **插件 → 已安装**，启用 `dsh-opencode-go`。
+3. 打开 **设置 → OpenCode Go** 标签，在 **OpenCode Go API Key** 输入框粘贴 key，点击 **保存 API Key**。
+4. 在同一标签中按需开启或关闭各个模型，开关自动保存。
+5. 在会话模型选择器中选择 **OpenCode Go** 下已开启的模型。
 
-token 保存后在下一次请求生效，无需再次重启。启动时允许留空；填写前不会提供可选模型。token 字段标记为 secret，设置表单不会回传已保存的明文值；配置仍由 DSH 保存到当前 profile，勿分享包含 token 的 profile 文件。
+API Key 通过 DSH 凭据服务保存，普通插件配置只保存凭据名称 `apiKeyEnv`（默认 `OPENCODE_GO_API_KEY`）和模型开关。界面只读取“是否已配置”，不会回传已保存的密钥。保存后在下一次请求生效，无需再次重启；未配置时不会提供可选模型。
 
-首次从旧版更新到带配置页面的版本后，请重启 DSH，以加载新增的客户端入口。**设置 → 内置插件** 是运行状态清单，不是本插件的 key 输入入口。
+DSH 当前默认凭据服务将密钥保存在 `$DSH_HOME/.credentials.yaml`，这是独立的本地明文凭据文件，并非系统钥匙串或加密保险箱。不要分享或提交该文件；Windows 上其保护取决于文件的访问权限。
+
+旧版配置中的明文 `token` 会在启动后自动迁移：先确认凭据已持久保存，再通过宿主设置服务清除旧字段。写入失败或已有不同凭据时保留旧配置；可在设置页重新保存希望使用的 key 来完成迁移。旧版 `!!js` 表达式不会被自动改写。
+
+从旧版更新后，请重启 DSH，以加载新的设置标签。配置入口位于 **设置 → OpenCode Go**；插件管理页仅用于安装、启用和停用插件。
+
+模型默认全部开启，未填写 key 时也可调整开关。关闭后，模型会从会话选择器中隐藏，已有会话下一次调用该模型也会提示更换模型或重新开启；已经开始的生成不受影响。关闭的模型会保留在设置列表中，随时可重新开启。设置页与会话选择器共用宿主模型目录和离线回退。
 
 使用其他 profile 时，将命令中的 `web` 替换为实际名称。仓库包含已构建的 `dist/`，安装时无需手动编译。本项目尚未发布到 npm。
 
@@ -28,6 +35,7 @@ token 保存后在下一次请求生效，无需再次重启。启动时允许�
 ## 功能
 
 - 单一 provider：`opencode-go`，直接使用 DSH 自带的模型选择器。
+- 独立 **设置 → OpenCode Go** 标签，集中管理 API Key 和各模型开关；修改即时生效。
 - 自动匹配 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Google Generative AI 四种协议及各自的 API 地址。
 - 复用 DSH 官方 `PiAiAdapter`，保留流式文本、思考内容、工具调用、用量统计、原生 replay 元数据，以及模型支持的图片输入和思考等级。
 - 所有协议携带 DSH 身份及 `x-opencode-session`；缺少会话 ID 的辅助调用自动补齐路由标识。
@@ -40,20 +48,20 @@ token 保存后在下一次请求生效，无需再次重启。启动时允许�
 
 ## 无界面配置
 
-也可以在当前 profile 的 `cordis.patch.yml` 中覆盖插件配置，只填 token：
+也可以在当前 profile 的 `cordis.patch.yml` 中指定凭据名称。通过设置页保存对应 key，或在启动 DSH 前设置同名环境变量；可选的 `disabledModels` 列出关闭的模型 ID：
 
 ```yaml
 - id: llm-opencode-go
   config:
-    token: '你的 OpenCode Go API Key'
+    apiKeyEnv: OPENCODE_GO_API_KEY
+    disabledModels: [] # 例如 ['glm-5.3', 'kimi-k3']
 ```
 
-如果更希望从环境变量传入，可以在该用户 patch 中使用 DSH 支持的表达式：
+例如使用 PowerShell 环境变量（该名称已有保存的凭据时，DSH 优先使用已保存值）：
 
-```yaml
-- id: llm-opencode-go
-  config:
-    token: !!js "process.env.OPENCODE_GO_API_KEY || ''"
+```powershell
+$env:OPENCODE_GO_API_KEY = '你的 OpenCode Go API Key'
+dsh --profile web
 ```
 
 不要同时让其他适配器注册 `opencode-go`，例如 `llm-pi-ai.providers.opencode-go`；DSH 会拒绝重复 provider。插件会明确拒绝官方 pi-ai 适配层不支持的 `stop` 参数。
@@ -73,7 +81,7 @@ npm pack
 dsh plugin --profile web add ./dsh-opencode-go-0.1.0.tgz
 ```
 
-测试使用模拟 HTTP/SSE 响应，不需要 token，也不会消耗额度；覆盖四种协议的真实 SDK 请求、鉴权与会话头、UTF-8 分片、工具参数、用量与终止顺序、token 更新、取消、目录缓存及离线回退。另验证客户端配置入口、密码输入与保存成功/失败，以及真实 Cordis Loader 中 token 热更新后的模型列表刷新、插件注册、卸载与重复注册行为。
+测试使用模拟 HTTP/SSE 响应，不需要 token，也不会消耗额度；覆盖四种协议的真实 SDK 请求、鉴权与会话头、UTF-8 分片、工具参数、用量与终止顺序、token 更新、取消、目录缓存及离线回退。另验证独立设置标签、凭据保存、模型开关及保存成功/失败、关闭模型后的调用拦截，并通过真实 Cordis Loader / SettingsForms 验证旧 token 迁移及失败保护、配置热更新、注册和卸载行为。
 
 已实测公开模型目录；尚未使用真实 Go token 进行付费生成验证。
 

@@ -7,7 +7,8 @@ import type { PiAiAdapterOptions, ResolvedPiAiProviderProfile } from '@deepseek-
 import { GoCatalog, goProvider, PROVIDER } from './catalog.js'
 
 export interface OpenCodeGoOptions {
-  token: () => string
+  token: () => string | Promise<string>
+  disabledModels?: () => readonly string[]
   catalog?: GoCatalog
   resolveAttachments?: PiAiAdapterOptions['resolveAttachments']
   resolveImageAccess?: PiAiAdapterOptions['resolveImageAccess']
@@ -18,7 +19,7 @@ export class OpenCodeGoAdapter extends PiAiAdapter {
   readonly catalog: GoCatalog
   private readonly anonymousSessions = new WeakMap<GenerateOptions['messages'], string>()
 
-  constructor(options: OpenCodeGoOptions) {
+  constructor(private readonly options: OpenCodeGoOptions) {
     const catalog = options.catalog ?? new GoCatalog()
     let previous = catalog.current
     const makeProfiles = (): ReadonlyMap<string, ResolvedPiAiProviderProfile> => new Map([[PROVIDER, {
@@ -43,8 +44,8 @@ export class OpenCodeGoAdapter extends PiAiAdapter {
         return profiles
       },
       resolveApiKey: async () => {
-        const token = options.token().trim().replace(/^Bearer\s+/i, '')
-        if (!token) throw new LlmError('请在左侧插件页打开 dsh-opencode-go，填写 OpenCode Go API Key。', 'MISSING_CREDENTIAL')
+        const token = (await options.token()).trim().replace(/^Bearer\s+/i, '')
+        if (!token) throw new LlmError('请在设置 → OpenCode Go 中填写 API Key。', 'MISSING_CREDENTIAL')
         return assertUsableApiKey(token, 'dsh-opencode-go', 'token')
       },
       auth: {
@@ -59,11 +60,14 @@ export class OpenCodeGoAdapter extends PiAiAdapter {
 
   override async listModels(provider: string): Promise<readonly LlmModelInfo[]> {
     await this.catalog.refresh()
-    return super.listModels(provider)
+    const models = await super.listModels(provider)
+    const disabled = new Set(this.options.disabledModels?.() ?? [])
+    return models.filter(model => !disabled.has(model.id))
   }
 
   override async resolveModel(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo> {
     signal?.throwIfAborted()
+    this.assertEnabled(model)
     if (!this.catalog.has(model)) await this.catalog.refresh(signal)
     signal?.throwIfAborted()
     return super.resolveModel(provider, model, signal)
@@ -71,14 +75,26 @@ export class OpenCodeGoAdapter extends PiAiAdapter {
 
   override async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall> {
     signal?.throwIfAborted()
+    this.assertEnabled(model)
     if (!this.catalog.has(model)) await this.catalog.refresh(signal)
     signal?.throwIfAborted()
     const prepared = await super.prepareCall(provider, model, signal)
-    return { ...prepared, stream: options => prepared.stream(this.withSession(options)) }
+    const adapter = this
+    return { ...prepared, async *stream(options) {
+      adapter.assertEnabled(options.model)
+      yield* prepared.stream(adapter.withSession(options))
+    } }
   }
 
-  override stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    return super.stream(this.withSession(options))
+  override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    this.assertEnabled(options.model)
+    yield* super.stream(this.withSession(options))
+  }
+
+  private assertEnabled(model: string): void {
+    if (this.options.disabledModels?.().includes(model)) {
+      throw new LlmError(`模型 ${model} 已关闭，请在设置 → OpenCode Go 中开启或选择其他模型。`, 'MODEL_DISABLED')
+    }
   }
 
   private withSession(options: GenerateOptions): GenerateOptions {
